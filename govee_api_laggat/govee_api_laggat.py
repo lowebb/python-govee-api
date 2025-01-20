@@ -7,7 +7,7 @@ from events import Events
 from typing import Dict, List, Optional, Tuple, Union
 
 from govee_api_laggat.__version__ import VERSION
-from govee_api_laggat.api import GoveeApi
+from govee_api_laggat.api import GoveeApi, GoveeOpenApi
 from govee_api_laggat.ble import GoveeBle
 from govee_api_laggat.govee_dtos import GoveeDevice, GoveeSource
 from govee_api_laggat.learning_storage import (
@@ -36,7 +36,8 @@ class Govee(object):
         # self._session = aiohttp.ClientSession()
         await self._scheduler_start()
         if self._api_key:
-            self._api = await GoveeApi.create(self, self._api_key)
+            #self._api = await GoveeApi.create(self, self._api_key)
+            self._api = await GoveeOpenApi.create(self, self._api_key)
         return self
 
     async def __aexit__(self, *err):

@@ -4,4 +4,10 @@ version_files = [
     "govee_api_laggat/__version__.py:VERSION",
     "setup.py",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "asyncio",
+]
+
 bump_message = "bump: version $current_version → $new_version"

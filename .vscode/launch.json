@@ -15,13 +15,15 @@
             "args": ["--api-key", "${env:GOVEE_API_KEY}"],
             "console": "integratedTerminal"
         },{
+            "envFile": "${workspaceFolder}/.env",
             "name": "run /example/readme_example.py",
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}/example",
             "program": "./readme_example.py",
-            "args": ["--api-key", "${env:GOVEE_API_KEY}"],
-            "console": "integratedTerminal"
+            "args": ["--api-key", "a28b173c-480e-495a-9099-a87757c90c7f"],
+            "console": "integratedTerminal",
+            "justMyCode": false
         },{
             "name": "run /example/storage_example_yaml.yaml",
             "type": "python",

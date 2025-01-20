@@ -11,9 +11,10 @@ from govee_api_laggat.govee_dtos import GoveeDevice, GoveeSource
 
 _LOGGER = logging.getLogger(__name__)
 
-# _API_BASE_URL = "https://developer-api.govee.com"
-_API_BASE_URL = "https://openapi.api.govee.com"
+_API_BASE_URL = "https://developer-api.govee.com"
 _API_DEVICES = _API_BASE_URL + "/v1/devices"
+_OPENAPI_BASE_URL = "https://openapi.api.govee.com"
+_OPENAPI_DEVICES = _OPENAPI_BASE_URL + "/router/api/v1/user/devices"
 _API_DEVICES_CONTROL = _API_BASE_URL + "/v1/devices/control"
 _API_DEVICES_STATE = _API_BASE_URL + "/v1/devices/state"
 # API rate limit header keys
@@ -31,7 +32,6 @@ DELAY_SET_FOLLOWING_SET_SECONDS = 1
 
 # regularly discover devices
 SCHEDULE_GET_DEVICES_SECONDS = 100
-
 
 class GoveeApi(object):
     """Govee API client."""
@@ -236,6 +236,8 @@ class GoveeApi(object):
         async with self._api_get(url=_API_DEVICES) as response:
             if response.status == 200:
                 result = await response.json()
+                import json
+                print(json.dumps(result))
                 if (
                     "data" in result
                     and "devices" in result["data"]
@@ -621,3 +623,109 @@ class GoveeApi(object):
                     errText = await response.text()
                     err = f"API-Error {response.status}: {errText}"
         return result, err
+
+class GoveeOpenApi(GoveeApi):
+    """ Open API version of the client """
+
+    @classmethod
+    async def create(
+        cls,
+        govee,
+        api_key: str,
+    ):
+        """Use create method if you want to use this Client without an async context manager."""
+        self = GoveeOpenApi(govee, api_key)
+        await self.__aenter__()
+        return self
+
+
+    async def get_devices(self) -> Tuple[List[GoveeDevice], str]:
+        """Get and cache devices via the openapi endpoint."""
+        _LOGGER.debug("get_devices (openAPI)")
+        err = None
+
+        async with self._api_get(url=_OPENAPI_DEVICES) as response:
+            if response.status == 200:
+                result = await response.json()
+                import json
+                print(json.dumps(result))
+                if (
+                    "data" in result
+                    and isinstance(result["data"], list)
+                ):
+                    timestamp = self._govee._utcnow()
+                    learning_infos = await self._govee._learning_storage._read_cached()
+
+                    for item in result["data"]:
+                        device_str = item["device"]
+                        if device_str in self._govee._devices.keys():
+                            # already in list
+                            continue
+                        model_str = item["sku"]
+                        is_retrievable = True # Not sure, its not in the new spec
+
+                        # assuming defaults for learned/configured values
+                        learned_set_brightness_max = None
+                        learned_get_brightness_max = None
+                        before_set_brightness_turn_on = False
+                        config_offline_is_off = False  # effective state
+                        # defaults by some conditions
+                        if not is_retrievable:
+                            learned_get_brightness_max = -1
+                        if model_str == "H6104":
+                            before_set_brightness_turn_on = True
+
+                        # load learned/configured values
+                        if device_str in learning_infos:
+                            learning_info = learning_infos[device_str]
+                            learned_set_brightness_max = (
+                                learning_info.set_brightness_max
+                            )
+                            learned_get_brightness_max = (
+                                learning_info.get_brightness_max
+                            )
+                            before_set_brightness_turn_on = (
+                                learning_info.before_set_brightness_turn_on
+                            )
+                            config_offline_is_off = learning_info.config_offline_is_off
+
+                        # create device DTO
+                        self._govee._devices[device_str] = GoveeDevice(
+                            device=device_str,
+                            model=model_str,
+                            device_name=item["deviceName"],
+                            controllable=item["controllable"],
+                            retrievable=is_retrievable,
+                            support_cmds=item["supportCmds"],
+                            support_turn="turn" in item["supportCmds"],
+                            support_brightness="brightness" in item["supportCmds"],
+                            support_color="color" in item["supportCmds"],
+                            support_color_tem="colorTem" in item["supportCmds"],
+                            # defaults for state
+                            online=True,
+                            power_state=False,
+                            brightness=0,
+                            color=(0, 0, 0),
+                            color_temp=0,
+                            timestamp=timestamp,
+                            source=GoveeSource.HISTORY,
+                            error=None,
+                            lock_set_until=0,
+                            lock_get_until=0,
+                            learned_set_brightness_max=learned_set_brightness_max,
+                            learned_get_brightness_max=learned_get_brightness_max,
+                            before_set_brightness_turn_on=before_set_brightness_turn_on,
+                            config_offline_is_off=config_offline_is_off,
+                        )
+                        # inform client on new devices
+                        self._govee.events.new_device(self._govee._devices[device_str])
+
+                else:
+                    _LOGGER.info(
+                        "API is connected, but there are no devices connected via Govee API. You may want to use Govee Home to pair your devices and connect them to WIFI."
+                    )
+            else:
+                result = await response.text()
+                err = f"API-Error {response.status}: {result}"
+        # cache last get_devices result
+        return self._govee.devices, err
