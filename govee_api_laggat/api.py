@@ -663,6 +663,7 @@ class GoveeOpenApi(GoveeApi):
                             continue
                         model_str = item["sku"]
                         is_retrievable = True # Not sure, its not in the new spec
+                        controllable = "capabilities" in item.keys() and len(item['capabilities']) > 0
 
                         # assuming defaults for learned/configured values
                         learned_set_brightness_max = None
@@ -689,12 +690,13 @@ class GoveeOpenApi(GoveeApi):
                             )
                             config_offline_is_off = learning_info.config_offline_is_off
 
+                        
                         # create device DTO
                         self._govee._devices[device_str] = GoveeDevice(
                             device=device_str,
                             model=model_str,
                             device_name=item["deviceName"],
-                            controllable=item["controllable"],
+                            controllable=controllable,
                             retrievable=is_retrievable,
                             support_cmds=item["supportCmds"],
                             support_turn="turn" in item["supportCmds"],
